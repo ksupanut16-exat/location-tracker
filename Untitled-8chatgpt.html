@@ -1,132 +1,67 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <title>ติดตามตำแหน่งพร้อมระดับความแม่นยำ + ปรับตำแหน่งแถบซูม</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    #map {
-      height: 100vh;
-      width: 100%;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Tracker</title>
 
-    /* กล่องควบคุมปุ่ม */
-    .controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      font-family: sans-serif;
-    }
+    <!-- โหลด Leaflet CSS -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-sA+4b8Kz0D0WfTgkUJbJQ7FQ0vFv7pnhM7Nf1pA+Z1w="
+        crossorigin=""
+    />
 
-    button {
-      margin: 4px;
-      padding: 6px 12px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    #accuracyDisplay {
-      margin-top: 8px;
-      font-size: 14px;
-      color: #333;
-    }
-
-    /* 🎯 ขยับแถบ zoom control ของ Leaflet ลงมาด้านล่าง 2 cm */
-    .leaflet-control-zoom {
-      margin-top: 3cm !important;
-    }
-  </style>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+    </style>
 </head>
 <body>
-  <div class="controls">
-    <button onclick="startLiveLocation()">เริ่มติดตาม</button>
-    <button onclick="stopLiveLocation()">หยุดติดตาม</button>
-    <button onclick="clearPath()">ล้างเส้นทาง</button>
-    <div id="accuracyDisplay">📡 ความแม่นยำ: -</div>
-  </div>
-  <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    let map, userMarker, userCircle, userPath, watchId = null;
-    let pathCoords = [];
+    <div id="map"></div>
 
-    function initMap() {
-      map = L.map('map').setView([13.736717, 100.523186], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-      userPath = L.polyline([], { color: 'blue', weight: 5 }).addTo(map);
-    }
+    <!-- โหลด Leaflet JS -->
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-o9N1j7kGStG2zYw2x+hG3WZBeb5lL1zGPEz3T2oCjHc="
+        crossorigin=""
+    ></script>
 
-    function startLiveLocation() {
-      if (!navigator.geolocation) {
-        alert("เบราว์เซอร์ของคุณไม่รองรับการติดตามตำแหน่ง");
-        return;
-      }
+    <script>
+        // เริ่มต้นแผนที่ที่จุดเริ่มต้น
+        const map = L.map('map').setView([13.736717, 100.523186], 13); // กรุงเทพ
 
-      alert("เริ่มติดตามตำแหน่งแบบเรียลไทม์...");
+        // เพิ่มแผนที่จาก OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          const latlng = [latitude, longitude];
-
-          const accuracyText = accuracy < 1000 
-            ? `${accuracy.toFixed(1)} เมตร` 
-            : `${(accuracy / 1000).toFixed(2)} กม.`;
-          document.getElementById("accuracyDisplay").innerHTML = `📡 ความแม่นยำ: ${accuracyText}`;
-
-          let circleColor = "red";
-          if (accuracy < 20) circleColor = "green";
-          else if (accuracy < 100) circleColor = "orange";
-
-          if (!userMarker) {
-            userMarker = L.marker(latlng).addTo(map)
-              .bindPopup("📍 คุณอยู่ที่นี่").openPopup();
-            userCircle = L.circle(latlng, { radius: accuracy, color: circleColor, fillColor: circleColor, fillOpacity: 0.3 }).addTo(map);
-          } else {
-            userMarker.setLatLng(latlng);
-            userCircle.setLatLng(latlng)
-              .setRadius(accuracy)
-              .setStyle({ color: circleColor, fillColor: circleColor });
-          }
-
-          pathCoords.push(latlng);
-          userPath.setLatLngs(pathCoords);
-          map.setView(latlng);
-        },
-        (error) => {
-          alert("⚠️ ไม่สามารถดึงตำแหน่งได้: " + error.message);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+        // ตรวจสอบและแสดงตำแหน่งผู้ใช้
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const { latitude, longitude, accuracy } = pos.coords;
+                    const userMarker = L.marker([latitude, longitude]).addTo(map);
+                    const accuracyCircle = L.circle([latitude, longitude], { radius: accuracy }).addTo(map);
+                    map.setView([latitude, longitude], 16);
+                },
+                (err) => {
+                    alert("ไม่สามารถเข้าถึงตำแหน่งได้: " + err.message);
+                },
+                { enableHighAccuracy: true }
+            );
+        } else {
+            alert("เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง");
         }
-      );
-    }
-
-    function stopLiveLocation() {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-        alert("🛑 หยุดติดตามตำแหน่งแล้ว");
-      }
-    }
-
-    function clearPath() {
-      pathCoords = [];
-      userPath.setLatLngs([]);
-      alert("🧹 ล้างเส้นทางเรียบร้อยแล้ว");
-    }
-
-    window.onload = initMap;
-  </script>
+    </script>
 </body>
 </html>
